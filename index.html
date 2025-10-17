@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calculadora de Retiros con Interés + Costo de Oportunidad</title>
+  <style>
+    :root {
+      --bg: #0f172a; /* slate-900 */
+      --card: #111827ee; /* gray-900 */
+      --muted: #94a3b8; /* slate-400 */
+      --text: #e5e7eb; /* gray-200 */
+      --accent: #22d3ee; /* cyan-400 */
+      --accent-2: #a78bfa; /* violet-400 */
+      --accent-3: #34d399; /* emerald-400 */
+      --ok: #34d399; /* emerald-400 */
+      --warn: #f59e0b; /* amber-500 */
+      --danger: #fb7185; /* rose-400 */
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: radial-gradient(1000px 500px at 10% -10%, #1f2937 0%, transparent 55%),
+                  radial-gradient(900px 500px at 110% 10%, #0e7490 0%, transparent 45%),
+                  var(--bg);
+      color: var(--text);
+    }
+  /* Use the full available width of the viewport for the layout */
+  .wrap { max-width: none; width: calc(100% - 32px); margin: 28px auto; padding: 0 16px; }
+    header { display:flex; align-items:center; gap:14px; margin-bottom: 18px; }
+    header .logo {
+      width:46px; height:46px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display:grid; place-items:center; color:#0b1020; font-weight:800; box-shadow: var(--shadow);
+    }
+    h1 { font-size: clamp(20px, 3.5vw, 30px); margin:0; letter-spacing: .3px; }
+    p.sub { margin: 4px 0 0; color: var(--muted); }
+
+  /* Layout: main left, results center, resumen right */
+  .grid { display: grid; grid-template-columns: 1.05fr 1fr .45fr; gap: 18px; align-items: start; }
+  @media (max-width: 1100px){ .grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 720px){ .grid { grid-template-columns: 1fr; } }
+
+    .card { background: var(--card); border: 1px solid #1f2937; border-radius: var(--radius); box-shadow: var(--shadow); }
+  .card.summary { background: linear-gradient(180deg, rgba(34,211,238,0.04), rgba(167,139,250,0.03)); border: 1px solid rgba(167,139,250,0.12); box-shadow: 0 12px 30px rgba(10,8,20,.5); }
+  .card.summary .section { padding: 20px; }
+  .card.summary h2 { color: var(--accent-2); }
+  .status-ok { color: var(--ok); font-weight:700; }
+  .status-fail { color: var(--danger); font-weight:700; }
+    .card h2 { margin: 0 0 12px; font-size: 18px; }
+    .section { padding: 18px; border-bottom: 1px solid #1f2937; }
+    .section:last-child { border-bottom: 0; }
+
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    .row3 { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; }
+    @media (max-width: 720px){ .row, .row3 { grid-template-columns: 1fr; } }
+
+    label { display:block; font-size: 13px; color: var(--muted); margin: 6px 0; }
+    input, select, button {
+      width:100%; padding: 12px 12px; border-radius: 12px; border: 1px solid #263042; background:#0b1220; color: var(--text);
+      outline: none; transition: border .15s ease, box-shadow .15s ease;
+    }
+    input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,238,.15); }
+
+    .mode { display:flex; gap:8px; background:#0a0f1a; border:1px solid #1f2937; border-radius: 12px; padding: 6px; width:max-content; }
+    .mode button { width:auto; padding:10px 14px; background:transparent; border:none; cursor:pointer; color: var(--muted); }
+    .mode button.active { background: linear-gradient(135deg, rgba(34,211,238,.2), rgba(167,139,250,.16)); color:var(--text); border-radius:10px; }
+
+    .result { display:grid; grid-template-columns: 1fr 1fr; gap:12px; align-items:stretch; margin-top: 10px; }
+    @media (max-width: 720px){ .result { grid-template-columns: 1fr; } }
+    .pill { background:#0a0f1a; border:1px dashed #253044; border-radius: 12px; padding: 14px; color: var(--text); }
+    .pill small { display:block; color: var(--muted); margin-bottom:6px; }
+    .pill strong { font-size: 20px; }
+
+    .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+
+    canvas { width:100%; height: 320px; display:block; border-radius: 12px; background: #07101d; border:1px solid #1f2937; }
+    .legend { display:flex; gap:16px; align-items:center; color: var(--muted); font-size: 12px; margin-top: 10px; flex-wrap: wrap; }
+    .dot { width:10px; height:10px; border-radius:50%; background: var(--accent); box-shadow: 0 0 10px rgba(34,211,238,.4); }
+    .dot2 { width:10px; height:10px; border-radius:50%; background: var(--accent-2); box-shadow: 0 0 10px rgba(167,139,250,.35); }
+    .dot3 { width:10px; height:10px; border-radius:50%; background: var(--accent-3); box-shadow: 0 0 10px rgba(52,211,153,.35); }
+
+    .footer { color: var(--muted); font-size: 12px; margin-top: 10px; }
+    .flex { display:flex; align-items:center; gap:12px; flex-wrap: wrap; }
+    .grow { flex: 1; min-width: 220px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">$</div>
+      <div>
+        <h1>Calculadora de Retiros y Costo de Oportunidad</h1>
+        <p class="sub">Sumamos el <em>costo de oportunidad</em>: un monto mensual que habrías invertido trabajando, capitalizado a su propia tasa.</p>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <div class="section">
+          <h2>Parámetros</h2>
+          <div class="row">
+            <div>
+              <label>Costo de vida mensual (USD)</label>
+              <input id="inpWithdrawal" type="number" step="50" min="0" value="3500" />
+            </div>
+            <div>
+              <label>Costo de oportunidad mensual (USD)</label>
+              <input id="inpOpp" type="number" step="50" min="0" value="2000" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div>
+              <label>Ingresos mensuales por proyectos personales (USD)</label>
+              <input id="inpExtraIncomeMonthly" type="number" step="50" min="0" value="0" />
+            </div>
+            <div>
+              <label>—</label>
+              <input type="text" value="Ingreso extra que puedes usar en lugar del sueldo" disabled />
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div>
+              <label>Tasa interes anual de retorno de inversiones esperada (%)</label>
+              <input id="inpAnnualRateCap" type="number" step="0.1" min="0" value="5" />
+            </div>
+            <div>
+              <label>Tasa interes anual de retorno de costo de oportunidad (%)</label>
+              <input id="inpAnnualRateOpp" type="number" step="0.1" min="0" value="5" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div>
+              <label>Inversión inicial única necesaria para montar tu negocio(USD)</label>
+              <input id="inpInitInvest" type="number" step="500" min="0" value="10000" />
+            </div>
+         
+            <div>
+              <label>Valor actual de tu capital (Ahorro + Inversiones) (USD)</label>
+              <input id="inpCurrentCapital" type="number" step="100" min="0" value="10000" />
+            </div>
+         
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div>
+              <label>Ahorro + Inversión esperado por año (USD)</label>
+              <input id="inpAnnualSave" type="number" step="100" min="0" value="10000" />
+            </div>
+            <div>
+              <label>Años hasta que se realizaría el Retiro</label>
+              <input id="inpYearsToOperation" type="number" step="1" min="0" value="5" />
+            </div>
+          </div>
+          <div class="hint">Las tasas se mensualizan como nominal/12. La inversión inicial se resta del capital al inicio; no afecta el costo de vida mensual.</div>
+        </div>
+
+        <div class="section">
+          <div class="flex" style="justify-content: space-between;">
+            <h2 style="margin:0">Modo de cálculo</h2>
+            <div class="mode" role="tablist" aria-label="Modo de cálculo">
+              <button id="btnModeA" class="active" role="tab" aria-selected="true">Años → Capital</button>
+              <button id="btnModeB" role="tab" aria-selected="false">Capital → Tiempo</button>
+            </div>
+          </div>
+
+          <div id="modeA" style="margin-top:12px;">
+            <div class="row">
+              <div>
+                <label>Años deseados</label>
+                <input id="inpYears" type="number" step="0.5" min="0" value="5" />
+              </div>
+              <div>
+                <label>Capital necesario (resultado)</label>
+                <input id="outPrincipalNeeded" type="text" disabled />
+              </div>
+            </div>
+          </div>
+
+          <div id="modeB" style="display:none; margin-top:12px;">
+            <div class="row">
+              <div>
+                <label>Capital inicial (USD)</label>
+                <input id="inpPrincipal" type="number" step="500" min="0" value="240000" />
+              </div>
+              <div>
+                <label>Tiempo que dura (resultado)</label>
+                <input id="outDuration" type="text" disabled />
+              </div>
+            </div>
+          </div>
+
+          <div class="result">
+            <div class="pill">
+              <small>Tasa mensual capital (Ahorro+Inversion)</small>
+              <strong id="outMonthlyRateCap">—</strong>
+            </div>
+            <div class="pill">
+              <small>Tasa mensual Costo Oportunidad</small>
+              <strong id="outMonthlyRateOpp">—</strong>
+            </div>
+          </div>
+          <div class="result">
+            <div class="pill">
+              <small>Interés mensual inicial (capital para vivir)<br/>
+                  Representa cuanto interés mensual generará tu Capital Necesario en promedio mensualmente
+              </small>
+              <strong id="outInitialInterest">—</strong>
+            </div>
+            <div class="pill">
+              <small>Aporte mensual necesario para no necesitar retiros ni perder el costo de oportunidad
+                (Salario Mensual)
+              </small>
+              <strong id="outReqMonthly">—</strong>
+            </div>
+          </div>
+          <div class="hint">*Se asume que este aporte adicional se invierte a la <strong>tasa del costo de oportunidad</strong> y se aporta de forma pareja cada mes.</div>
+        </div>
+
+        <div class="section">
+          <h2>Gráfico en el tiempo</h2>
+          <canvas id="chart" aria-label="Gráfico de saldo" role="img"></canvas>
+          <div class="legend">
+            <span class="dot"></span> Saldo del capital (para vivir)
+            <span class="dot2"></span> Valor acumulado del costo de oportunidad
+            <span class="dot3"></span> Capital sin retiros (escenario alternativo)
+          </div>
+          <div class="footer">Si el retiro mensual ≤ interés generado por el capital para vivir, no se agota. La inversión inicial se descuenta al inicio y no aparece en la curva azul.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section">
+          <h2>Resultados</h2>
+          <div class="row">
+            <div class="pill">
+              <small>Capital inicial total Necesario</small>
+              <strong id="outP">—</strong>
+            </div>
+            <div class="pill">
+              <small>Meses simulados</small>
+              <strong id="outMonths">—</strong>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div class="pill">
+              <small>Valor actual de tu capital</small>
+              <strong id="outCurrentCapital">—</strong>
+            </div>
+            <div class="pill">
+              <small>Faltante para alcanzar capital necesario</small>
+              <strong id="outMissingCapital">—</strong>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div class="pill">
+              <small>Valor compuesto de ahorros + inversiones esperados</small>
+              <strong id="outCompoundedAnnualSave">—</strong>
+            </div>
+            <div class="pill">
+              <small>Capital ajustado (actual + capital compuesto)</small>
+              <strong id="outAdjustedCapital">—</strong>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div class="pill">
+              <small>% cubierto respecto a lo necesario</small>
+              <strong id="outPctCovered">—</strong>
+            </div>
+            
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div class="pill">
+              <small>Inversión inicial (negocio)</small>
+              <strong id="outInitInvest">—</strong>
+            </div>
+            <div class="pill">
+              <small>Capital para vivir</small>
+              <strong id="outLifeCapital">—</strong>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div class="pill">
+              <small>Años y meses</small>
+              <strong id="outYearsMonths">—</strong>
+            </div>
+            <div class="pill">
+              <small>Total retirado en el período</small>
+              <strong id="outTotalWithdrawn">—</strong>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div class="pill">
+              <small>Costo de oportunidad acumulado</small>
+              <strong id="outOppFV">—</strong>
+            </div>
+            <div class="pill">
+              <small>Aportes hipotéticos totales por costo de oportunidad</small>
+              <strong id="outOppContribs">—</strong>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div class="pill">
+              <small>Total capital Inicial + costo de oportunidad</small>
+              <strong id="outTotalPPlusOpp">—</strong>
+            </div>
+            <div class="pill">
+              <small>Capital Inicial Sin Retiros</small>
+              <strong id="outFVNoWithdraw">—</strong>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div class="pill">
+              <small>Capital Inicial sin retiros + Costo de oportunidad</small>
+              <strong id="outFVNoWithdrawPlusOpp">—</strong>
+            </div>
+            <div class="pill">
+              <small>Aporte anual necesario (equivalente)</small>
+              <strong id="outReqAnnual">—</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Tips rápidos</h2>
+          <ul style="margin:6px 0 0 18px; color: var(--muted);">
+            <li>Las tasas se mensualizan como nominal/12. Si preferís <em>tasa efectiva anual</em>, lo podemos activar.</li>
+            <li>La <strong>inversión inicial</strong> se suma al capital necesario (modo A) y se resta del capital disponible para vivir (modo B).</li>
+            <li>"Aporte necesario" se calcula para cubrir la brecha entre tu escenario actual y <em>Capital Inicial sin retiros + costo op.</em>.</li>
+            <li>En escenarios "no se agota", simulamos 30 años para visualizar tendencias.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- RESUMEN (columna derecha) -->
+      <div class="card summary">
+        <div class="section">
+          <h2>Resumen</h2>
+          <p style="color:var(--muted); font-size:13px; margin-bottom:12px;">Este resumen muestra en un solo vistazo el capital inicial total necesario para mantener tu retiro planificado, el tiempo estimado que durará (o si no se agota), y el costo de oportunidad estimado si optaras por no retirar. Los valores combinan el capital para vivir y la inversión inicial requerida.</p>
+          <div class="row">
+            <div class="pill">
+              <small>Capital inicial total necesario (vida + inversión)</small>
+              <strong id="sumCapitalNeeded">—</strong>
+            </div>
+            <div class="pill">
+              <small>Tiempo (duración planificada/estimada)</small>
+              <strong id="sumTime">—</strong>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div class="pill">
+              <small>Costo de oportunidad total (si no retiraras)</small>
+              <strong id="sumOppTotal">—</strong>
+            </div>
+            <div class="pill">
+              <small>Estado</small>
+              <strong id="sumStatus" style="color:var(--accent-3)">—</strong>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px;">
+            <div class="pill">
+              <small>Monto faltante</small>
+              <strong id="sumMissingAmount">—</strong>
+            </div>
+            <div class="pill">
+              <small>—</small>
+              <strong style="opacity:.4"> </strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+(() => {
+  const fmtMoney = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const fmtPct = new Intl.NumberFormat('es-AR', { style: 'percent', maximumFractionDigits: 2 });
+
+  const $ = (id) => document.getElementById(id);
+  const inpWithdrawal = $('inpWithdrawal');
+  const inpOpp = $('inpOpp');
+  const inpAnnualRateCap = $('inpAnnualRateCap');
+  const inpAnnualRateOpp = $('inpAnnualRateOpp');
+  const inpInitInvest = $('inpInitInvest');
+  const inpExtraIncomeMonthly = $('inpExtraIncomeMonthly');
+  const inpYears = $('inpYears');
+  const outPrincipalNeeded = $('outPrincipalNeeded');
+  const inpPrincipal = $('inpPrincipal');
+  const outDuration = $('outDuration');
+  const outMonthlyRateCap = $('outMonthlyRateCap');
+  const outMonthlyRateOpp = $('outMonthlyRateOpp');
+  const outInitialInterest = $('outInitialInterest');
+  const outP = $('outP');
+  const outMonths = $('outMonths');
+  const outYearsMonths = $('outYearsMonths');
+  const outTotalWithdrawn = $('outTotalWithdrawn');
+  const outOppFV = $('outOppFV');
+  const outOppContribs = $('outOppContribs');
+  const outTotalPPlusOpp = $('outTotalPPlusOpp');
+  const outFVNoWithdraw = $('outFVNoWithdraw');
+  const outFVNoWithdrawPlusOpp = $('outFVNoWithdrawPlusOpp');
+  const outReqMonthly = $('outReqMonthly');
+  const outReqAnnual = $('outReqAnnual');
+  const outInitInvestLabel = $('outInitInvest');
+  const outLifeCapital = $('outLifeCapital');
+  const outCurrentCapital = $('outCurrentCapital');
+  const outMissingCapital = $('outMissingCapital');
+  const outPctCovered = $('outPctCovered');
+  const inpCurrentCapital = $('inpCurrentCapital');
+  const inpAnnualSave = $('inpAnnualSave');
+  const inpYearsToOperation = $('inpYearsToOperation');
+  const outCompoundedAnnualSave = $('outCompoundedAnnualSave');
+  const outAdjustedCapital = $('outAdjustedCapital');
+
+  // resumen
+  const sumCapitalNeeded = $('sumCapitalNeeded');
+  const sumTime = $('sumTime');
+  const sumOppTotal = $('sumOppTotal');
+  const sumStatus = $('sumStatus');
+  const sumMissingAmount = $('sumMissingAmount');
+
+  const btnModeA = $('btnModeA');
+  const btnModeB = $('btnModeB');
+  const modeA = $('modeA');
+  const modeB = $('modeB');
+
+  let currentMode = 'A'; // 'A' = years->principal, 'B' = principal->time
+
+  btnModeA.addEventListener('click', () => switchMode('A'));
+  btnModeB.addEventListener('click', () => switchMode('B'));
+
+  function switchMode(m){
+    currentMode = m;
+    btnModeA.classList.toggle('active', m==='A');
+    btnModeB.classList.toggle('active', m==='B');
+    btnModeA.setAttribute('aria-selected', m==='A');
+    btnModeB.setAttribute('aria-selected', m==='B');
+    modeA.style.display = m==='A' ? 'block' : 'none';
+    modeB.style.display = m==='B' ? 'block' : 'none';
+    computeAndRender();
+  }
+
+  // Financial formulas
+  function monthlyRate(annualPct){
+    const a = Math.max(0, Number(annualPct) || 0) / 100;
+    return a / 12; // simple conversion (nominal/12)
+  }
+
+  function principalNeeded(withdrawal, rMonthly, years){
+    const w = Math.max(0, Number(withdrawal) || 0);
+    const n = Math.max(0, Math.round((Number(years)||0) * 12));
+    if (rMonthly <= 0) return w * n; // sin interés
+    const pow = Math.pow(1 + rMonthly, -n);
+    return w * (1 - pow) / rMonthly;
+  }
+
+  function monthsDuration(P, withdrawal, rMonthly){
+    const w = Math.max(0, Number(withdrawal) || 0);
+    const p = Math.max(0, Number(P) || 0);
+    const r = Math.max(0, rMonthly || 0);
+    if (w <= 0) return Infinity; // no retiras => no se agota
+    if (r === 0) return p / w; // lineal
+    const ratio = 1 - (p * r) / w;
+    if (ratio <= 0) return Infinity; // interés mensual ≥ retiro => no se agota
+    // n = -ln(1 - P*r/w)/ln(1+r)
+    return -Math.log(ratio) / Math.log(1 + r);
+  }
+
+  function simulateBalances(P, withdrawal, rMonthly, maxMonths){
+    const vals = [];
+    let bal = P;
+    const capStop = Math.max(1, Math.floor(maxMonths));
+    for (let i = 0; i < capStop; i++){
+      vals.push(Math.max(0, bal));
+      if (!isFinite(bal)) break;
+      const interest = bal * rMonthly;
+      bal = bal + interest - withdrawal;
+      if (bal <= 0){ vals.push(0); break; }
+    }
+    return vals;
+  }
+
+  // costo de oportunidad: aportes mensuales capitalizados al fin de cada mes
+  function simulateOppSeries(aporte, rMonthly, months){
+    const vals = [];
+    let bal = 0;
+    const n = Math.max(0, Math.floor(months));
+    for (let i = 0; i <= n; i++){
+      vals.push(bal);
+      // crecimiento + aporte al final del mes
+      bal = bal * (1 + rMonthly) + aporte;
+    }
+    return vals;
+  }
+
+  // escenario alternativo: sin retiros (capital total intacto)
+  function simulateNoWithdrawSeries(P, rMonthly, months){
+    const vals = [];
+    let bal = P;
+    const n = Math.max(0, Math.floor(months));
+    for (let i = 0; i <= n; i++){
+      vals.push(bal);
+      bal = bal * (1 + rMonthly);
+    }
+    return vals;
+  }
+
+  // aporte mensual requerido para alcanzar un FV objetivo
+  function requiredMonthlyForTarget(gapFV, rMonthly, months){
+    if (months <= 0) return 0;
+    if (gapFV <= 0) return 0;
+    if (rMonthly === 0) return gapFV / months;
+    const factor = (Math.pow(1 + rMonthly, months) - 1) / rMonthly;
+    return gapFV / factor; // pago al final de cada mes
+  }
+
+  // Chart (vanilla canvas)
+  const canvas = $('chart');
+  const ctx = canvas.getContext('2d');
+  let lastSeriesA = [], lastSeriesB = [], lastSeriesC = [];
+
+  function resizeCanvas(){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawChart(lastSeriesA, lastSeriesB, lastSeriesC);
+  }
+  window.addEventListener('resize', () => { resizeCanvas(); });
+
+  function drawChart(seriesA, seriesB, seriesC){
+    lastSeriesA = seriesA || [];
+    lastSeriesB = seriesB || [];
+    lastSeriesC = seriesC || [];
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    ctx.clearRect(0,0,w,h);
+
+    const padL = 56, padR = 16, padT = 16, padB = 40;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    // Axes
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, padT);
+    ctx.lineTo(padL, h - padB);
+    ctx.lineTo(w - padR, h - padB);
+    ctx.stroke();
+
+    const candidate = [seriesA, seriesB, seriesC].reduce((a,b)=> (b&&b.length>a.length? b: a), []);
+    if (!candidate || candidate.length === 0){ return; }
+
+    const maxY = Math.max(
+      (seriesA.length? Math.max(...seriesA):0),
+      (seriesB.length? Math.max(...seriesB):0),
+      (seriesC.length? Math.max(...seriesC):0),
+      0
+    );
+    const minY = 0;
+
+    // Y ticks (5)
+    const ticks = 5;
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    for(let i=0;i<=ticks;i++){
+      const t = i / ticks;
+      const yVal = maxY - (maxY - minY) * t;
+      const y = padT + plotH * t;
+      ctx.strokeStyle = 'rgba(148,163,184,.15)';
+      ctx.beginPath();
+      ctx.moveTo(padL, y);
+      ctx.lineTo(w - padR, y);
+      ctx.stroke();
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(fmtMoney.format(yVal), 6, y + 4);
+    }
+
+    // X ticks (every 12 months as 1y)
+    const months = (candidate.length - 1);
+    const years = Math.max(1, Math.round(months / 12));
+    for(let y=0; y<=years; y++){
+      const mIndex = Math.min(months, y * 12);
+      const x = padL + (plotW * (mIndex / Math.max(1, months)));
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(y + 'a', x - 6, h - padB + 16);
+      ctx.strokeStyle = 'rgba(148,163,184,.12)';
+      ctx.beginPath();
+      ctx.moveTo(x, padT);
+      ctx.lineTo(x, h - padB);
+      ctx.stroke();
+    }
+
+    function plotLine(arr, color){
+      if (!arr || arr.length === 0) return;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = color.replace('1)', '.35)');
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      arr.forEach((val, i) => {
+        const x = padL + (plotW * (i / Math.max(1, months)));
+        const y = padT + plotH * (1 - (val - minY) / Math.max(1, (maxY - minY)));
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // Colors in rgba for shadow trick
+    plotLine(seriesA, 'rgba(34,211,238,1)'); // cyan
+    plotLine(seriesB, 'rgba(167,139,250,1)'); // violet
+    plotLine(seriesC, 'rgba(52,211,153,1)');  // emerald
+  }
+
+  function computeAndRender(){
+  const rawW = Math.max(0, Number(inpWithdrawal.value) || 0);
+  const extraIncome = Math.max(0, Number(inpExtraIncomeMonthly.value) || 0);
+  const w = Math.max(0, rawW - extraIncome); // retiro neto necesario después de ingresos extra
+    const opp = Math.max(0, Number(inpOpp.value) || 0);
+    const initInv = Math.max(0, Number(inpInitInvest.value) || 0);
+    const rCap = monthlyRate(inpAnnualRateCap.value);
+    const rOpp = monthlyRate(inpAnnualRateOpp.value);
+
+    outMonthlyRateCap.textContent = fmtPct.format(rCap);
+    outMonthlyRateOpp.textContent = fmtPct.format(rOpp);
+
+    if (currentMode === 'A'){
+      const years = Math.max(0, Number(inpYears.value) || 0);
+      const n = Math.round(years * 12);
+      const P_life = principalNeeded(w, rCap, years);
+      const P_total = P_life + initInv; // capital para vivir + inversión inicial
+
+      outPrincipalNeeded.value = fmtMoney.format(P_total);
+      outP.textContent = fmtMoney.format(P_total);
+      outInitInvestLabel.textContent = fmtMoney.format(initInv);
+      outLifeCapital.textContent = fmtMoney.format(P_life);
+
+      // Serie azul arranca en P_life (la inversión inicial se va aparte)
+      const seriesA = simulateBalances(P_life, w, rCap, Math.max(1, n));
+      const seriesB = simulateOppSeries(opp, rOpp, n);
+      // Escenario sin retiros: capital total intacto (incluye lo que de otro modo iría al negocio)
+      const seriesC = simulateNoWithdrawSeries(P_total, rCap, n);
+      drawChart(seriesA, seriesB, seriesC);
+
+      const months = seriesA.length - 1; // incluye 0 final
+      outMonths.textContent = months.toString();
+      const y = Math.floor(months / 12);
+      const m = Math.round(months % 12);
+      const yearsMonthsStr = `${y} años ${m} meses`;
+      outYearsMonths.textContent = yearsMonthsStr;
+      outTotalWithdrawn.textContent = fmtMoney.format(months * w);
+
+  const initialInterest = P_life * rCap;
+  outInitialInterest.textContent = fmtMoney.format(initialInterest);
+
+      const oppFV = seriesB[Math.max(0, seriesB.length-1)] || 0;
+      outOppFV.textContent = fmtMoney.format(oppFV);
+      outOppContribs.textContent = fmtMoney.format(opp * months);
+
+      outTotalPPlusOpp.textContent = fmtMoney.format(P_total + oppFV);
+      const fvNoWithdraw = seriesC[Math.max(0, seriesC.length-1)] || 0;
+      outFVNoWithdraw.textContent = fmtMoney.format(fvNoWithdraw);
+      const targetFV = fvNoWithdraw + oppFV;
+      outFVNoWithdrawPlusOpp.textContent = fmtMoney.format(targetFV);
+
+      const endCap = seriesA[Math.max(0, seriesA.length-1)] || 0; // debería ser 0
+      const gap = Math.max(0, targetFV - endCap);
+  // Aporte mensual requerido + sumar los ingresos que ya recibís por proyectos
+  const reqMonthly = requiredMonthlyForTarget(gap, rOpp, months);
+  const reqMonthlyPlusExtra = reqMonthly + extraIncome; // sumar ingreso extra que ya percibís
+  outReqMonthly.textContent = fmtMoney.format(reqMonthlyPlusExtra);
+  outReqAnnual.textContent = fmtMoney.format(reqMonthlyPlusExtra * 12);
+
+      // resumen
+      sumCapitalNeeded.textContent = fmtMoney.format(P_total);
+      sumTime.textContent = yearsMonthsStr;
+      sumOppTotal.textContent = fmtMoney.format(targetFV);
+
+  // calcular valor compuesto de ahorros esperados antes de la operación
+  const annualSave = Math.max(0, Number(inpAnnualSave.value) || 0);
+  const yearsToOp = Math.max(0, Math.round(Number(inpYearsToOperation.value) || 0));
+  // usar tasa anual capital para componer (rCap es mensual) => convertir a tasa anual simple
+  const rAnnualCap = Math.max(0, Number(inpAnnualRateCap.value) || 0) / 100;
+  // compuesto anual: cada aporte anual se capitaliza hasta el final del periodo (anual contribution at year end)
+  // FV = contribution * [ ( (1+r)^n - 1 ) / r ]  (anual contributions)
+  let compounded = 0;
+  if (yearsToOp <= 0 || annualSave <= 0) compounded = 0;
+  else if (rAnnualCap === 0) compounded = annualSave * yearsToOp;
+  else compounded = annualSave * ( (Math.pow(1 + rAnnualCap, yearsToOp) - 1) / rAnnualCap );
+
+  // valor actual ajustado = valor actual ingresado + valor compuesto de los ahorros esperados
+  const rawCurrent = Math.max(0, Number(inpCurrentCapital.value) || 0);
+  const current = rawCurrent + compounded;
+  const missing = Math.max(0, P_total - current);
+  const pct = P_total <= 0 ? 0 : (current / P_total);
+  outCompoundedAnnualSave.textContent = fmtMoney.format(compounded);
+  outAdjustedCapital.textContent = fmtMoney.format(current);
+  outCurrentCapital.textContent = fmtMoney.format(rawCurrent);
+  outMissingCapital.textContent = fmtMoney.format(missing);
+  outPctCovered.textContent = fmtPct.format(pct);
+
+      // estado resumen: mostrar texto con % y monto faltante; aplicar color
+    if (sumStatus){
+        const pctText = fmtPct.format(pct);
+        if (missing > 0){
+      sumStatus.textContent = `Falta — ya tenés ${pctText}`;
+          sumStatus.classList.remove('status-ok'); sumStatus.classList.add('status-fail');
+        } else {
+          sumStatus.textContent = `Cubierto — ya tenés ${pctText}`;
+          sumStatus.classList.remove('status-fail'); sumStatus.classList.add('status-ok');
+        }
+      }
+      if (sumMissingAmount) sumMissingAmount.textContent = fmtMoney.format(missing);
+
+    } else {
+      const P_total = Math.max(0, Number(inpPrincipal.value) || 0);
+      const P_life = Math.max(0, P_total - initInv);
+
+      outP.textContent = fmtMoney.format(P_total);
+      outInitInvestLabel.textContent = fmtMoney.format(initInv);
+      outLifeCapital.textContent = fmtMoney.format(P_life);
+
+      const nReal = monthsDuration(P_life, w, rCap);
+      let months;
+      if (!isFinite(nReal)){
+        outDuration.value = 'No se agota (retiro ≤ interés)';
+        months = 360; // simular 30 años para ver tendencia
+      } else {
+        months = Math.max(0, Math.round(nReal));
+        outDuration.value = `${months} meses`;
+      }
+
+      const seriesA = simulateBalances(P_life, w, rCap, Math.max(1, months));
+      const seriesB = simulateOppSeries(opp, rOpp, months);
+      const seriesC = simulateNoWithdrawSeries(P_total, rCap, months);
+      drawChart(seriesA, seriesB, seriesC);
+
+      outMonths.textContent = isFinite(nReal) ? months.toString() : '∞';
+      const y = isFinite(nReal) ? Math.floor(months / 12) : '∞';
+      const m = isFinite(nReal) ? Math.round(months % 12) : '';
+      const yearsMonthsStr = isFinite(nReal) ? `${y} años ${m} meses` : 'No se agota';
+      outYearsMonths.textContent = yearsMonthsStr;
+      const withdrawn = isFinite(nReal) ? months * w : (seriesA.length-1) * w;
+      outTotalWithdrawn.textContent = fmtMoney.format(withdrawn);
+
+  const initialInterest = P_life * rCap;
+  outInitialInterest.textContent = fmtMoney.format(initialInterest);
+
+      const oppFV = seriesB[Math.max(0, seriesB.length-1)] || 0;
+      outOppFV.textContent = fmtMoney.format(oppFV);
+      outOppContribs.textContent = fmtMoney.format(opp * months);
+
+      outTotalPPlusOpp.textContent = fmtMoney.format(P_total + oppFV);
+      const fvNoWithdraw = seriesC[Math.max(0, seriesC.length-1)] || 0;
+      outFVNoWithdraw.textContent = fmtMoney.format(fvNoWithdraw);
+      const targetFV = fvNoWithdraw + oppFV;
+      outFVNoWithdrawPlusOpp.textContent = fmtMoney.format(targetFV);
+
+      const endCap = seriesA[Math.max(0, seriesA.length-1)] || 0;
+      const gap = Math.max(0, targetFV - endCap);
+  const reqMonthly = requiredMonthlyForTarget(gap, rOpp, months);
+  const reqMonthlyPlusExtraB = reqMonthly + extraIncome;
+  outReqMonthly.textContent = fmtMoney.format(reqMonthlyPlusExtraB);
+  outReqAnnual.textContent = fmtMoney.format(reqMonthlyPlusExtraB * 12);
+
+      // resumen
+      sumCapitalNeeded.textContent = fmtMoney.format(P_total);
+      sumTime.textContent = yearsMonthsStr;
+      sumOppTotal.textContent = fmtMoney.format(targetFV);
+
+  // modo B: mismo cálculo de compuesto y capital ajustado
+  const annualSaveB = Math.max(0, Number(inpAnnualSave.value) || 0);
+  const yearsToOpB = Math.max(0, Math.round(Number(inpYearsToOperation.value) || 0));
+  const rAnnualCapB = Math.max(0, Number(inpAnnualRateCap.value) || 0) / 100;
+  let compoundedB = 0;
+  if (yearsToOpB <= 0 || annualSaveB <= 0) compoundedB = 0;
+  else if (rAnnualCapB === 0) compoundedB = annualSaveB * yearsToOpB;
+  else compoundedB = annualSaveB * ( (Math.pow(1 + rAnnualCapB, yearsToOpB) - 1) / rAnnualCapB );
+  const rawCurrentB = Math.max(0, Number(inpCurrentCapital.value) || 0);
+  const currentB = rawCurrentB + compoundedB;
+  const missingB = Math.max(0, P_total - currentB);
+  const pctB = P_total <= 0 ? 0 : (currentB / P_total);
+  outCompoundedAnnualSave.textContent = fmtMoney.format(compoundedB);
+  outAdjustedCapital.textContent = fmtMoney.format(currentB);
+  outCurrentCapital.textContent = fmtMoney.format(rawCurrentB);
+  outMissingCapital.textContent = fmtMoney.format(missingB);
+  outPctCovered.textContent = fmtPct.format(pctB);
+      if (sumStatus){
+        const pctTextB = fmtPct.format(pctB);
+        if (missingB > 0){
+          sumStatus.textContent = `Falta — ya tenés ${pctTextB}`;
+          sumStatus.classList.remove('status-ok'); sumStatus.classList.add('status-fail');
+        } else {
+          sumStatus.textContent = `Cubierto — ya tenés ${pctTextB}`;
+          sumStatus.classList.remove('status-fail'); sumStatus.classList.add('status-ok');
+        }
+      }
+      if (sumMissingAmount) sumMissingAmount.textContent = fmtMoney.format(missingB);
+    }
+  }
+
+  // Bind inputs
+  // Persistencia: guardar / cargar parámetros en localStorage
+  const PARAM_KEYS = [
+    'inpWithdrawal','inpOpp','inpAnnualRateCap','inpAnnualRateOpp','inpInitInvest',
+    'inpCurrentCapital','inpAnnualSave','inpYearsToOperation','inpYears','inpPrincipal','inpExtraIncomeMonthly'
+  ];
+
+  function saveParams(){
+    try{
+      const o = {};
+      PARAM_KEYS.forEach(k => {
+        const el = document.getElementById(k);
+        if (el) o[k] = el.value;
+      });
+      localStorage.setItem('calcParams', JSON.stringify(o));
+    }catch(e){ /* noop if storage blocked */ }
+  }
+
+  function loadParams(){
+    try{
+      const raw = localStorage.getItem('calcParams');
+      if (!raw) return;
+      const o = JSON.parse(raw);
+      PARAM_KEYS.forEach(k => {
+        if (o && Object.prototype.hasOwnProperty.call(o, k)){
+          const el = document.getElementById(k);
+          if (el) el.value = o[k];
+        }
+      });
+    }catch(e){ /* ignore parsing errors */ }
+  }
+
+  // Bind inputs: guardar en localStorage y recalcular al cambiar
+  [inpWithdrawal, inpOpp, inpAnnualRateCap, inpAnnualRateOpp, inpInitInvest, inpYears, inpPrincipal, inpCurrentCapital, inpAnnualSave, inpYearsToOperation, inpExtraIncomeMonthly].forEach(el => {
+    el.addEventListener('input', () => { saveParams(); computeAndRender(); });
+  });
+
+  // Init: cargar parámetros (si existen), luego renderizar
+  loadParams();
+  resizeCanvas();
+  computeAndRender();
+})();
+</script>
+</body>
+</html>
