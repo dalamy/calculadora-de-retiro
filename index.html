@@ -19,7 +19,9 @@
       --shadow: 0 10px 30px rgba(0,0,0,.35);
       --radius: 18px;
     }
-    * { box-sizing: border-box; }
+  * { box-sizing: border-box; }
+  /* smooth scrolling for anchor navigation */
+  html { scroll-behavior: smooth; }
     html, body { height: 100%; }
     body {
       margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
@@ -49,6 +51,12 @@
   .card.summary h2 { color: var(--accent-2); }
   .status-ok { color: var(--ok); font-weight:700; }
   .status-fail { color: var(--danger); font-weight:700; }
+  /* collapsible panel */
+  .collapsible { margin: 12px 0 18px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(148,163,184,.04); }
+  .collapsible .head { background: linear-gradient(90deg, rgba(34,211,238,.04), rgba(167,139,250,.03)); padding: 10px 14px; display:flex; align-items:center; gap:12px; }
+  .collapsible .head button { background:transparent; border:none; color:var(--text); cursor:pointer; font-weight:600; }
+  .collapsible .body { max-height: 0; overflow: hidden; transition: max-height .32s ease, padding .28s ease; padding: 0 14px; }
+  .collapsible.open .body { padding: 14px; max-height: 2000px; }
     .card h2 { margin: 0 0 12px; font-size: 18px; }
     .section { padding: 18px; border-bottom: 1px solid #1f2937; }
     .section:last-child { border-bottom: 0; }
@@ -95,7 +103,71 @@
         <h1>Calculadora de Retiros y Costo de Oportunidad</h1>
         <p class="sub">Sumamos el <em>costo de oportunidad</em>: un monto mensual que habrías invertido trabajando, capitalizado a su propia tasa.</p>
       </div>
+      <div style="margin-left:auto; display:flex; align-items:center;">
+        <div class="how-control">
+          <button id="btnToggleHow" aria-expanded="false" style="padding:8px 12px; border-radius:10px; border:1px solid rgba(34,211,238,.12); background: linear-gradient(135deg, rgba(34,211,238,.08), rgba(167,139,250,.06)); color:var(--text); cursor:pointer;">¿Cómo funciona esta calculadora?</button>
+        </div>
+      </div>
     </header>
+
+    <div id="howPanel" class="collapsible" aria-hidden="true">
+      <div class="head">
+        <button id="btnHowHeader">Resumen: Cómo funciona (clic para abrir)</button>
+      </div>
+      <div class="body">
+        <h3 style="margin-top:0;">Explicación completa — ¿qué hace esta calculadora?</h3>
+        <p style="color:var(--muted);">Esta herramienta estima si tu capital actual más los aportes futuros y el rendimiento esperado son suficientes para financiar un retiro o una transición a proyectos personales sin quedarte sin fondos. Además compara ese escenario con el <em>costo de oportunidad</em> —es decir, cuánto valor perderías si no invirtieras ese dinero y en vez lo retiraras para vivir— capitalizando esos aportes al rendimiento que indiques.</p>
+
+        <h4>Resumen del flujo de cálculo</h4>
+        <ol style="color:var(--muted); margin-left:18px;">
+          <li>Se calcula el <strong>capital necesario</strong> para cubrir el retiro deseado durante N años aplicando la fórmula de valor presente de una anualidad (si hay tasa mensual > 0 se usa la versión descontada).</li>
+          <li>Se suma la <strong>inversión inicial</strong> (si corresponde) para obtener el <em>capital total necesario</em>.</li>
+          <li>Se simula la evolución temporal de tres series: saldo disponible si se retira (serie A), el valor acumulado del costo de oportunidad (serie B) y el capital si no se retirara (serie C). El gráfico muestra esas tres trayectorias.</li>
+          <li>Se calcula el <strong>valor compuesto</strong> de los ahorros/inversiones anuales que indiques hasta la fecha de operación y se suma al capital actual para obtener el <em>capital ajustado</em>.</li>
+          <li>La diferencia entre capital necesario y capital ajustado es el <strong>faltante</strong>; también se calcula el porcentaje cubierto.</li>
+          <li>Si hay brecha, se estima el <strong>aporte mensual equivalente</strong> que, invertido al rendimiento del costo de oportunidad, permitiría alcanzar el objetivo en el horizonte simulado.</li>
+        </ol>
+
+        <h4>Supuestos y fórmulas (resumen técnico)</h4>
+        <ul style="color:var(--muted); margin-left:18px;">
+          <li><strong>Conversión de tasas:</strong> la tasa anual introducida se convierte a nominal mensual dividiéndola por 12 (r_anual/12). Esto representa un supuesto de tasa nominal; no se está usando conversión a Tasa Efectiva Anual a menos que lo selecciones explícitamente.</li>
+          <li><strong>Capital necesario (PV de una anualidad):</strong> P = W * (1 - (1 + r)^-n) / r, donde W = retiro mensual neto, r = tasa mensual, n = meses.</li>
+          <li><strong>Meses hasta agotar:</strong> si se parte de un capital P y se retira W mensual con interés r, se calcula n = -ln(1 - P*r/W) / ln(1+r). Si el interés mensual ≥ retiro, el capital no se agota.</li>
+          <li><strong>Valor compuesto de aportes anuales:</strong> para aportes anuales al final de cada año usamos FV = aporte * ((1+r)^N - 1)/r con r = tasa anual (en forma decimal) y N = años hasta la operación. Si r=0 se hace suma simple.</li>
+          <li><strong>Aporte mensual requerido:</strong> se usa la fórmula de pago hacia un valor futuro: pago = gapFV / factor, donde factor = ((1+r)^m - 1)/r y r es la tasa mensual del costo de oportunidad.</li>
+        </ul>
+
+        <h4>Descripción de los campos</h4>
+        <ul style="color:var(--muted); margin-left:18px;">
+          <li><strong>Costo de vida mensual:</strong> gasto que necesitas cada mes para vivir; la calculadora permite restar los <em>ingresos por proyectos</em> para obtener el retiro neto necesario.</li>
+          <li><strong>Ingresos por proyectos personales:</strong> monto mensual que ya recibís (o esperás recibir) y que reduce el retiro que tenés que financiar con tus ahorros.</li>
+          <li><strong>Costo de oportunidad (mensual):</strong> cantidad mensual que representaría el salario/proyección que dejarías de percibir si no trabajaras; se capitaliza para estimar cuánto habría crecido si se invirtiera.</li>
+          <li><strong>Tasas (capital / costo de oportunidad):</strong> rendimiento anual esperado para tus inversiones (para el capital) y rendimiento que usarás para capitalizar el costo de oportunidad.</li>
+          <li><strong>Inversión inicial:</strong> desembolso único necesario para montar el proyecto/negocio; se añade al capital necesario y se resta del capital disponible al inicio cuando corresponda.</li>
+          <li><strong>Valor actual de tu capital:</strong> saldo que tenés hoy (ahorros, inversiones). La calculadora le suma el <em>valor compuesto</em> de los aportes anuales esperados hasta la operación.</li>
+          <li><strong>Ahorro + Inversión por año / Años hasta la operación:</strong> aportes periódicos anuales que se componen a la tasa anual indicada hasta el momento del retiro/operación.</li>
+        </ul>
+
+        <h4>Salidas e interpretación</h4>
+        <ul style="color:var(--muted); margin-left:18px;">
+          <li><strong>Capital inicial total necesario:</strong> suma del capital para vivir (PV del retiro) más la inversión inicial.</li>
+          <li><strong>Valor actual / Capital ajustado:</strong> tu capital hoy más el valor compuesto de los aportes futuros esperados.</li>
+          <li><strong>Monto faltante y % cubierto:</strong> cuánto falta para alcanzar el objetivo y qué porcentaje ya está cubierto por tu capital ajustado.</li>
+          <li><strong>Aporte mensual necesario:</strong> sugerencia de cuánto deberías aportar cada mes (invertido) para cubrir la brecha en el horizonte elegido; se muestra también el equivalente anual.</li>
+          <li><strong>Gráfico:</strong> compara el escenario de retirar (saldo que decae), el valor acumulado del costo de oportunidad y el capital sin retiros para que visualices la diferencia.</li>
+        </ul>
+
+        <h4>Ejemplo numérico corto</h4>
+        <p style="color:var(--muted); margin-left:18px;">Si necesitás USD 3.500/mes, indicás ingresos extra mensuales de USD 500, y tu tasa esperada es 5% anual: la calculadora toma retiro neto 3.000 USD, mensualiza la tasa (5%/12), calcula el PV de esa anualidad por N años, suma la inversión inicial (si existe), y compara con tu capital actual + aportes anuales compuestos. El resultado te dice cuánto falta y cuánto aporte mensual sería equivalente para cerrar la brecha.</p>
+
+        <h4>Consejos y limitaciones</h4>
+        <ul style="color:var(--muted); margin-left:18px;">
+          <li>Los resultados dependen fuertemente de las tasas y del horizonte. Probad varios escenarios (optimista / conservador).</li>
+          <li>La conversión a tasa mensual aquí es nominal (división por 12). Si querés una conversión a tasa efectiva anual o supuestos más avanzados (inflación, impuestos, rentabilidad variable), podemos añadirlos.</li>
+          <li>Los aportes anuales se suponen al final de cada año; si aportás mensual o con distinta frecuencia, los números cambiarán ligeramente.</li>
+        </ul>
+      </div>
+    </div>
 
     <div class="grid">
       <div class="card">
@@ -141,8 +213,9 @@
               <label>Valor actual de tu capital (Ahorro + Inversiones) (USD)</label>
               <input id="inpCurrentCapital" type="number" step="100" min="0" value="10000" />
             </div>
-         
-          </div>
+
+            
+            </div>
           <div class="row" style="margin-top:12px;">
             <div>
               <label>Ahorro + Inversión esperado por año (USD)</label>
@@ -431,6 +504,19 @@
 
   btnModeA.addEventListener('click', () => switchMode('A'));
   btnModeB.addEventListener('click', () => switchMode('B'));
+
+  // Collapsible how panel
+  const btnToggleHow = document.getElementById('btnToggleHow');
+  const btnHowHeader = document.getElementById('btnHowHeader');
+  const howPanel = document.getElementById('howPanel');
+  function setHow(open){
+    if (!howPanel) return;
+    howPanel.classList.toggle('open', open);
+    howPanel.setAttribute('aria-hidden', String(!open));
+    if (btnToggleHow) btnToggleHow.setAttribute('aria-expanded', String(open));
+  }
+  if (btnToggleHow) btnToggleHow.addEventListener('click', () => { setHow(!howPanel.classList.contains('open')); });
+  if (btnHowHeader) btnHowHeader.addEventListener('click', () => { setHow(!howPanel.classList.contains('open')); });
 
   function switchMode(m){
     currentMode = m;
